@@ -1,11 +1,12 @@
 export type AccountsType = {
     label: string;
-    labelObject: LabelObject[];
+    labelArray: labelArray[] | [];
     type: string;
-    login: number;
+    login: string;
     password: string | null;
+    showPassword: boolean;
 }
 
-type LabelObject = {
+type labelArray = {
     text: string;
 }

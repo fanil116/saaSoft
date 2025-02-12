@@ -12,16 +12,16 @@
       <p class="label__input">Пароль</p>
     </div>
     <div v-for="(account, index) in accounts" :key="index" class="account">
-      <textarea v-model="account.label" @blur="validateField(index, 'label')" placeholder="Метки" :class="{'error': errors[index]?.label}" class="account__textarea"/>
+      <textarea v-model="account.label" @blur="validateField(index, 'label')" placeholder="Метки" :class="{'error': errors && errors[index]?.label}" class="account__textarea"/>
       <select v-model="account.type" @change="handleTypeChange(index)" class="account__select">
         <option value="local">Локальная</option>
         <option value="ldap">LDAP</option>
       </select>
       <input v-model="account.login" @blur="validateField(index, 'login')"  placeholder="Логин" :class="[
         account.type === 'ldap' ? 'account__input_full' : 'account__input',
-        errors[index]?.login ? 'error' : ''
+        errors && errors[index]?.login ? 'error' : ''
       ]">
-      <div v-if="account.type === 'local'" class="password-container account__input" :class="{'error': errors[index]?.password}">
+      <div v-if="account.type === 'local'" class="password-container account__input" :class="{'error': errors && errors[index]?.password}">
         <input v-model="account.password" @blur="validateField(index, 'password')" :type="account.showPassword ? 'text' : 'password'" placeholder="Пароль" />
         <div class="show-password" @click="togglePassword(index)">
           <ShowPasswordIcon v-if="account.showPassword"/> 
@@ -34,12 +34,12 @@
 </template>
 <script setup lang="ts">
 import { ref, watch, onMounted, computed, type Ref } from 'vue';
-import { useAccountsStore } from "./stores/counter";
+import { useAccountsStore } from "./stores/accounts";
 import BacketIcon from './components/icons/IconBacket.vue';
 import ShowPasswordIcon from './components/icons/IconShowPassword.vue';
 import HidePasswordIcon from './components/icons/IconHidePassword.vue';
 import type { AccountsType } from './types/accounts';
-import type { ErrorsType } from './types/error';
+import type { ErrorsType } from './types/errors';
 const store = useAccountsStore();
 const accounts: Ref<AccountsType[] | null> = ref(null);
 const errors: Ref<ErrorsType[] | null> = ref(null);
@@ -47,36 +47,41 @@ const errors: Ref<ErrorsType[] | null> = ref(null);
 onMounted(()=> {
   store.getAccountsFromLocal();
 
-  accounts.value = store.accounts && store.accounts.length > 0 ? store.accounts : [{ label: '', labelObject: {}, type: 'local', login: '', password: '', showPassword: false }];
+  accounts.value = store.accounts && store.accounts.length > 0 ? store.accounts : [{ label: '', labelArray: [], type: 'local', login: '', password: '', showPassword: false }];
 
-  errors.value = accounts.value.map(() => ({ label: false, login: false, password: false }));
+  errors.value = accounts.value ? accounts.value.map(() => ({ label: false, login: false, password: false })) : null;
 })
   
 const addAccount = () => {
-  accounts.value.push({ label: '', type: 'local', login: '', password: '', showPassword: false });
-  errors.value.push({ label: false, login: false, password: false });
+  accounts.value!.push({ label: '', labelArray: [], type: 'local', login: '', password: '', showPassword: false });
+  errors.value!.push({ label: false, login: false, password: false });
 };
 
 const removeAccount = (index: number) => {
-  accounts.value.splice(index, 1);
-  errors.value.splice(index, 1);
-  store.setAccounts(accounts.value);
-  if (accounts.value.length == 0) {
-    accounts.value = [{ label: '', labelObject: {}, type: 'local', login: '', password: '', showPassword: false }]
+  if (accounts.value && errors.value) {
+    accounts.value.splice(index, 1);
+    errors.value.splice(index, 1);
+    store.setAccounts(accounts.value);
+  }
+  if (accounts.value && accounts.value.length == 0) {
+    accounts.value = [{ label: '', labelArray: [], type: 'local', login: '', password: '', showPassword: false }]
   }
 };
 
 const togglePassword = (index: number) => {
-  accounts.value[index].showPassword = !accounts.value[index].showPassword;
+  if (accounts.value) {
+    accounts.value[index].showPassword = !accounts.value[index].showPassword;
+  }
 };
 
 const handleTypeChange = (index: number) => {
-  if (accounts.value[index].type === 'ldap') {
+  if (accounts.value && accounts.value[index].type === 'ldap') {
     accounts.value[index].password = null;
   }
   validateField(index, 'password');
 };
 const validateField = (index: number, field: string) => {
+  if (!accounts.value || !errors.value || !accounts.value[index] || !errors.value[index]) return;
   let validLabel = true;
   if (field === 'label') {
     accounts.value[index].label = accounts.value[index].label.trim();
@@ -99,7 +104,12 @@ const validateField = (index: number, field: string) => {
 watch(() => accounts.value ? accounts.value.map(acc => acc.label) : [],
   (newLabels: string[], oldLabels: string[]) => {
     newLabels.forEach((label, index) => {
-      accounts.value[index].labelObject = label.split(';').map(text => ({ text: text.trim() })).filter(t => t.text);
+      if (accounts.value && accounts.value[index]) {
+        accounts.value[index].labelArray = label
+          .split(';')
+          .map(text => ({ text: text.trim() }))
+          .filter(t => t.text);
+      }
     });
   },
   { deep: true }
